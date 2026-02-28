@@ -1,6 +1,8 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:minh_nguyet_truyen/app/presentaion/blocs/audio/audio_player_handler.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/chapter/chapter_bloc.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/chapter_per_page/chapter_per_page_bloc.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/comic/blocs/comic_by_genre_bloc.dart';
@@ -12,6 +14,7 @@ import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/comic/blocs/sear
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/comic/blocs/trending_comics_bloc.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/comic/comic_event.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/genre/genre_bloc.dart';
+import 'package:minh_nguyet_truyen/app/presentaion/widgets/global_mini_player.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/widgets/update_dialogs.dart';
 import 'package:minh_nguyet_truyen/config/routes/custome_route.dart';
 import 'package:minh_nguyet_truyen/core/constants/api.dart';
@@ -28,6 +31,8 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  final audioHandler = await initAudioService();
+  getIt.registerSingleton<AudioHandler>(audioHandler);
   await apiVersionService.initialize(); // Initialize ApiVersionService
   await UpdateService.initialize();
   final updateInfo = await UpdateService.checkUpdate();
@@ -37,6 +42,7 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key, required this.updateInfo});
   final UpdateInfo updateInfo;
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -78,10 +84,12 @@ class MyApp extends StatelessWidget {
         onGenerateRoute: (settings) => AppRouter.generate(settings),
         initialRoute: "/",
         builder: (context, child) {
+          // Logic for update dialog
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             final currentContext = navigatorKey.currentContext;
             if (currentContext == null || !currentContext.mounted) return;
             if (updateInfo.type == UpdateType.none) return;
+
             if (updateInfo.type == UpdateType.force) {
               showDialog(
                 context: currentContext,
@@ -96,8 +104,8 @@ class MyApp extends StatelessWidget {
             }
 
             final navigator = Navigator.of(currentContext);
-            final currentRouteName = navigator.widget.pages.firstOrNull?.name
-                ?? ModalRoute.of(currentContext)?.settings.name;
+            final currentRouteName = navigator.widget.pages.firstOrNull?.name ??
+                ModalRoute.of(currentContext)?.settings.name;
 
             if (currentRouteName == '/' || currentRouteName == null) {
               showDialog(
@@ -111,7 +119,41 @@ class MyApp extends StatelessWidget {
             }
           });
 
-          return child!;
+          if (child == null) return const SizedBox.shrink();
+
+          return StreamBuilder<PlaybackState>(
+            stream: getIt<AudioHandler>().playbackState,
+            builder: (context, snapshot) {
+              final playbackState = snapshot.data;
+              final processingState =
+                  playbackState?.processingState ?? AudioProcessingState.idle;
+
+              final isPlayerVisible = processingState !=
+                      AudioProcessingState.idle &&
+                  processingState != AudioProcessingState.completed &&
+                  processingState != AudioProcessingState.error;
+
+              const miniPlayerHeight = 70.0;
+
+              return Stack(
+                children: [
+                  // Apply padding to the main content when player is visible
+                  Padding(
+                    padding: EdgeInsets.only(
+                        bottom: isPlayerVisible ? miniPlayerHeight : 0),
+                    child: child,
+                  ),
+                  // The player is positioned at the bottom
+                  const Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: GlobalMiniPlayer(),
+                  ),
+                ],
+              );
+            },
+          );
         },
       ),
     );

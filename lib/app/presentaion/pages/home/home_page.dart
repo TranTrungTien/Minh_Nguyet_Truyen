@@ -40,9 +40,7 @@ class _HomePageState extends State<HomePage> {
       drawer: DrawerHome(
         selectedIndex: _selectedIndex,
         onChanged: (selectedIndex) {
-          // Bound check bảo vệ
           if (selectedIndex < 0 || selectedIndex >= _pages.length) {
-            // Tùy bạn: push PageNotFound hoặc giữ nguyên index
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const PageNotFound()),
             );
