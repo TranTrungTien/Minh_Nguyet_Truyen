@@ -128,10 +128,10 @@ class MyApp extends StatelessWidget {
               final processingState =
                   playbackState?.processingState ?? AudioProcessingState.idle;
 
-              final isPlayerVisible = processingState !=
-                      AudioProcessingState.idle &&
-                  processingState != AudioProcessingState.completed &&
-                  processingState != AudioProcessingState.error;
+              final isPlayerVisible =
+                  processingState != AudioProcessingState.idle &&
+                      processingState != AudioProcessingState.completed &&
+                      processingState != AudioProcessingState.error;
 
               const miniPlayerHeight = 70.0;
 
@@ -148,7 +148,7 @@ class MyApp extends StatelessWidget {
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    child: GlobalMiniPlayer(),
+                    child: SafeArea(child: GlobalMiniPlayer()),
                   ),
                 ],
               );
