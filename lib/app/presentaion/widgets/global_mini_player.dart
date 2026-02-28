@@ -64,33 +64,27 @@ class GlobalMiniPlayer extends StatelessWidget {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                    child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.skip_previous),
-                      onPressed: getIt<AudioHandler>().skipToPrevious,
-                    ),
-                    StreamBuilder<PlaybackState>(
-                      stream: getIt<AudioHandler>().playbackState,
-                      builder: (context, snapshot) {
-                        final isPlaying = snapshot.data?.playing ?? false;
-                        return IconButton(
-                          icon:
-                              Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-                          iconSize: 32.0,
-                          onPressed: isPlaying
-                              ? getIt<AudioHandler>().pause
-                              : getIt<AudioHandler>().play,
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.skip_next),
-                      onPressed: getIt<AudioHandler>().skipToNext,
-                    )
-                  ],
-                )),
+                IconButton(
+                  icon: const Icon(Icons.skip_previous),
+                  onPressed: getIt<AudioHandler>().skipToPrevious,
+                ),
+                StreamBuilder<PlaybackState>(
+                  stream: getIt<AudioHandler>().playbackState,
+                  builder: (context, snapshot) {
+                    final isPlaying = snapshot.data?.playing ?? false;
+                    return IconButton(
+                      icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                      iconSize: 32.0,
+                      onPressed: isPlaying
+                          ? getIt<AudioHandler>().pause
+                          : getIt<AudioHandler>().play,
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.skip_next),
+                  onPressed: getIt<AudioHandler>().skipToNext,
+                ),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: getIt<AudioHandler>().stop,

@@ -1,8 +1,10 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hidable/hidable.dart';
 import 'package:minh_nguyet_truyen/app/data/services/reading_progress_service.dart';
 import 'package:minh_nguyet_truyen/app/domain/models/chapter.dart';
+import 'package:minh_nguyet_truyen/app/presentaion/blocs/audio/audio_player_handler.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/chapter/chapter_bloc.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/chapter/chapter_event.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/chapter/chapter_state.dart';
@@ -197,6 +199,13 @@ class _ChapterComicPageState extends State<ChapterComicPage> {
       },
       child: BlocBuilder<ChapterBloc, ChapterState>(
         builder: (context, state) {
+          final handler = getIt<AudioHandler>();
+          final playbackState = handler.playbackState.value;
+          final processingState = playbackState.processingState ?? AudioProcessingState.idle;
+          final isPlayerVisible = processingState != AudioProcessingState.idle &&
+              processingState != AudioProcessingState.completed &&
+              processingState != AudioProcessingState.error;
+
           final isLoadingChapter = state is ChapterLoading;
           return Scaffold(
             backgroundColor: AppColors.backgroundLight,

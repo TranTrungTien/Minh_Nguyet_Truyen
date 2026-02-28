@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -39,13 +41,16 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   bool _isLastPage = false;
   bool _isFetchingMore = false;
 
+  bool _isPaused = false;
+  int _lastSpokenIndex = 0;
+  Completer<void>?
+      _speakCompleter;
+
   AudioPlayerHandler(this._getContentOneChapter, this._getChaptersPerPage) {
     _tts.setLanguage("vi-VN");
 
-    _tts.setCompletionHandler(() {
-      if (playbackState.value.playing) {
-        skipToNext();
-      }
+    _tts.setProgressHandler((text, start, end, word) {
+      _lastSpokenIndex = end;
     });
 
     playbackState.add(playbackState.value.copyWith(
@@ -72,8 +77,8 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     _currentPage = initialPage;
     _isLastPage = false;
 
-    final mediaItems =
-        _chaptersToMediaItems(initialChapters, comic.title ?? 'Không có tiêu đề');
+    final mediaItems = _chaptersToMediaItems(
+        initialChapters, comic.title ?? 'Không có tiêu đề');
     _playlist.add(mediaItems);
     queue.add(mediaItems);
 
@@ -85,50 +90,128 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> play() async {
-    // FIXED: Stop any ongoing speech before starting a new one.
-    await _tts.stop();
-
     final item = mediaItem.value;
     if (item == null || _currentIndex == -1) {
       return;
     }
 
-    playbackState.add(playbackState.value
-        .copyWith(playing: true, processingState: AudioProcessingState.loading));
+    var content = item.extras?['content'] as String?;
+
+    if (content == null || content.isEmpty) {
+      final comicId = _currentComic?.id;
+      if (comicId != null) {
+        final dataState = await _getContentOneChapter(
+          comicId: comicId,
+          chapterId: item.id,
+        );
+
+        if (dataState is DataSuccess && dataState.data?.content != null) {
+          content = dataState.data!.content!;
+          final updatedItem = item.copyWith(
+            extras: {...?item.extras, 'content': content},
+          );
+          _playlist.value[_currentIndex] = updatedItem;
+          mediaItem.add(updatedItem);
+          _playlist.add(List.from(_playlist.value));
+        } else {
+          content = null;
+        }
+      }
+    }
+
+    if (content == null || content.isEmpty) {
+      await skipToNext();
+      return;
+    }
+
+    playbackState.add(playbackState.value.copyWith(
+      playing: true,
+      processingState: AudioProcessingState.loading,
+    ));
 
     try {
-      var content = item.extras?['content'] as String?;
+      if (_isPaused) {
+        if (_lastSpokenIndex >= content.length) {
+          _isPaused = false;
+          await skipToNext();
+          return;
+        }
 
-      if (content == null || content.isEmpty) {
-        final comicId = _currentComic?.id;
-        if (comicId != null) {
-          final dataState =
-              await _getContentOneChapter(comicId: comicId, chapterId: item.id);
+        String remaining = content.substring(_lastSpokenIndex);
 
-          if (dataState is DataSuccess && dataState.data?.content != null) {
-            content = dataState.data!.content!;
-            final updatedItem =
-                item.copyWith(extras: {...?item.extras, 'content': content});
-            _playlist.value[_currentIndex] = updatedItem;
-            mediaItem.add(updatedItem);
-            _playlist.add(List.from(_playlist.value));
-          } else {
-            content = null; // Đánh dấu là không có content
+        playbackState.add(playbackState.value.copyWith(
+          processingState: AudioProcessingState.ready,
+        ));
+
+        _isPaused = false;
+        await _speakInChunks(remaining);
+        return;
+      }
+
+      _lastSpokenIndex = 0;
+      await _tts.stop();
+
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.ready,
+      ));
+
+      await _speakInChunks(content);
+    } catch (e) {
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.error,
+      ));
+      await skipToNext();
+    }
+  }
+
+  Future<void> _speakInChunks(String content) async {
+    if (content.isEmpty) return;
+
+    int chunkSize = 3500;
+
+    try {
+      if (Platform.isAndroid) {
+        int? maxLength = await _tts.getMaxSpeechInputLength ?? 4000;
+        chunkSize = min(chunkSize, maxLength - 200); // Dự phòng
+      }
+      // Delay 0.8s để engine khởi động
+      await Future.delayed(const Duration(milliseconds: 800));
+      await _tts.speak(" ");
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      _speakCompleter =
+          Completer<void>();
+
+      for (int i = 0; i < content.length; i += chunkSize) {
+        int end = (i + chunkSize).clamp(0, content.length);
+        String chunk = content.substring(i, end);
+
+        if (end < content.length) {
+          int lastSpace = chunk.lastIndexOf(RegExp(r'\s'));
+          if (lastSpace != -1 && lastSpace > chunk.length - 100) {
+            end = i + lastSpace + 1;
+            chunk = content.substring(i, end);
           }
+        }
+
+        await _tts.speak(chunk);
+        await _tts.awaitSpeakCompletion(true);
+        await Future.delayed(
+            const Duration(milliseconds: 300));
+
+        if (_isPaused) {
+          break;
         }
       }
 
-      if (content != null && content.isNotEmpty) {
-        playbackState.add(playbackState.value
-            .copyWith(processingState: AudioProcessingState.ready));
-        await _tts.speak(content);
-      } else {
-        await skipToNext(); // Không có content, tự động chuyển
+      _speakCompleter?.complete();
+
+      if (playbackState.value.playing) {
+        await skipToNext();
       }
     } catch (e) {
-      playbackState.add(playbackState.value
-          .copyWith(processingState: AudioProcessingState.error));
-      await skipToNext(); // Lỗi cũng tự động chuyển
+      _speakCompleter?.completeError(e);
+      await skipToNext();
     }
   }
 
@@ -180,12 +263,15 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> pause() async {
+    _isPaused = true;
     await _tts.pause();
     playbackState.add(playbackState.value.copyWith(playing: false));
   }
 
   @override
   Future<void> stop() async {
+    _isPaused = false;
+    _lastSpokenIndex = 0;
     await _tts.stop();
     _currentIndex = -1;
     _currentComic = null;
