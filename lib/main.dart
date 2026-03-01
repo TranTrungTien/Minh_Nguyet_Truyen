@@ -78,7 +78,7 @@ class MyApp extends StatelessWidget {
         onGenerateRoute: (settings) => AppRouter.generate(settings),
         initialRoute: "/",
         builder: (context, child) {
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
             final currentContext = navigatorKey.currentContext;
             if (currentContext == null || !currentContext.mounted) return;
             if (updateInfo.type == UpdateType.none) return;
@@ -87,31 +87,26 @@ class MyApp extends StatelessWidget {
                 context: currentContext,
                 barrierDismissible: false,
                 builder: (_) => UpdateDialog(
-                  title: updateInfo.title,
-                  message: updateInfo.message,
-                  isForce: updateInfo.type == UpdateType.force,
+                  updateInfo: updateInfo,
                 ),
               );
               return;
             }
 
             final navigator = Navigator.of(currentContext);
-            final currentRouteName = navigator.widget.pages.firstOrNull?.name
-                ?? ModalRoute.of(currentContext)?.settings.name;
+            final currentRouteName = navigator.widget.pages.firstOrNull?.name ??
+                ModalRoute.of(currentContext)?.settings.name;
 
             if (currentRouteName == '/' || currentRouteName == null) {
               showDialog(
                 context: currentContext,
                 builder: (_) => UpdateDialog(
-                  title: updateInfo.title,
-                  message: updateInfo.message,
-                  isForce: updateInfo.type == UpdateType.force,
+                  updateInfo: updateInfo,
                 ),
               );
             }
           });
-
-          return child!;
+          return child ?? const SizedBox();
         },
       ),
     );
