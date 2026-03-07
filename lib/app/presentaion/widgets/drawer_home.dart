@@ -99,20 +99,27 @@ class _DrawerHomeState extends State<DrawerHome> {
   }
 
   void _sendEmail() async {
+    final String subject = Uri.encodeComponent("[Góp ý/Báo lỗi] - Ứng dụng Minh Nguyệt Truyện");
     final Uri emailLaunchUri = Uri(
       scheme: 'mailto',
       path: 'trantrungtien9x@gmail.com',
-      query: 'subject=[Góp ý/Báo lỗi] - Ứng dụng Minh Nguyệt Truyện',
+      query: 'subject=$subject',
     );
 
-    if (await canLaunchUrl(emailLaunchUri)) {
-      await launchUrl(emailLaunchUri);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể mở ứng dụng email.'),
-        ),
-      );
+    try {
+      if (await canLaunchUrl(emailLaunchUri)) {
+        await launchUrl(emailLaunchUri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $emailLaunchUri';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể mở ứng dụng email. Vui lòng gửi trực tiếp đến trantrungtien9x@gmail.com'),
+          ),
+        );
+      }
     }
   }
 

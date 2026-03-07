@@ -198,50 +198,55 @@ class _ChapterComicPageState extends State<ChapterComicPage> {
       child: BlocBuilder<ChapterBloc, ChapterState>(
         builder: (context, state) {
           final isLoadingChapter = state is ChapterLoading;
-          return Scaffold(
-            backgroundColor: AppColors.backgroundLight,
-            body: CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                SliverAppBar(
-                  floating: true,
-                  snap: true,
-                  backgroundColor: AppColors.backgroundLight,
-                  title: GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        '${RoutesName.kComics}/${widget.storyId}',
-                      );
-                    },
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        widget.storyName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        chapter.name ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          return Container(
+            color: AppColors.backgroundLight,
+            child: SafeArea(
+              child: Scaffold(
+                backgroundColor: AppColors.backgroundLight,
+                body: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: [
+                    SliverAppBar(
+                      floating: true,
+                      snap: true,
+                      backgroundColor: AppColors.backgroundLight,
+                      title: GestureDetector(
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            '${RoutesName.kComics}/${widget.storyId}',
+                          );
+                        },
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            widget.storyName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            chapter.name ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    SliverToBoxAdapter(
+                      child: _buildBody(state),
+                    ),
+                  ],
                 ),
-                SliverToBoxAdapter(
-                  child: _buildBody(state),
-                ),
-              ],
+                bottomNavigationBar: widget.totalChapterPages != -1
+                    ? Hidable(
+                        controller: _scrollController,
+                        child: Center(
+                          child: _buildPrevAndNextButton(isLoadingChapter),
+                        ),
+                      )
+                    : null,
+              ),
             ),
-            bottomNavigationBar: widget.totalChapterPages != -1
-                ? Hidable(
-                    controller: _scrollController,
-                    child: Center(
-                      child: _buildPrevAndNextButton(isLoadingChapter),
-                    ),
-                  )
-                : null,
           );
         },
       ),
