@@ -2,22 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:minh_nguyet_truyen/core/constants/colors.dart';
 import 'package:minh_nguyet_truyen/services/update_service.dart';
 
-class UpdateDialog extends StatelessWidget {
-  final String title;
-  final String message;
-  final bool isForce;
+class UpdateDialog extends StatefulWidget {
+  final UpdateInfo updateInfo;
 
   const UpdateDialog({
     super.key,
-    required this.title,
-    required this.message,
-    required this.isForce,
+    required this.updateInfo,
   });
 
   @override
+  State<UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<UpdateDialog> {
+  bool _shouldIgnoreUpdate = false;
+
+  void _onClose() {
+    if (widget.updateInfo.type == UpdateType.soft && _shouldIgnoreUpdate) {
+      UpdateService.ignoreSoftUpdate(widget.updateInfo.latestVersion!);
+    }
+    Navigator.of(context).pop();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isForce = widget.updateInfo.type == UpdateType.force;
+
     return PopScope(
-      canPop: isForce,
+      canPop: !isForce,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Column(
@@ -25,7 +37,7 @@ class UpdateDialog extends StatelessWidget {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
                 color: AppColors.primary,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -42,34 +54,62 @@ class UpdateDialog extends StatelessWidget {
                       alignment: Alignment.topRight,
                       child: IconButton(
                         icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: _onClose,
                       ),
                     ),
                 ],
               ),
             ),
-
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   Text(
-                    title,
+                    widget.updateInfo.title,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.justify,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    message,
-                    style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                    widget.updateInfo.message,
+                    style: const TextStyle(
+                        fontSize: 16, color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
-
+                  if (!isForce) ...[
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _shouldIgnoreUpdate = !_shouldIgnoreUpdate;
+                        });
+                      },
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _shouldIgnoreUpdate,
+                            onChanged: (value) {
+                              setState(() {
+                                _shouldIgnoreUpdate = value ?? false;
+                              });
+                            },
+                            activeColor: AppColors.primary,
+                          ),
+                          const Expanded(
+                            child: Text(
+                              'Không hiện lại',
+                              style: TextStyle(
+                                  color: AppColors.textSecondary, fontSize: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -85,15 +125,17 @@ class UpdateDialog extends StatelessWidget {
                       ),
                       child: const Text(
                         'UPDATE NOW',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
                       ),
                     ),
                   ),
-
                   if (!isForce) ...[
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: _onClose,
                       child: const Text(
                         'Later',
                         style: TextStyle(color: AppColors.textSecondary),

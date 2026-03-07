@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum UpdateType { none, soft, force }
@@ -25,6 +26,7 @@ class UpdateInfo {
 
 class UpdateService {
   static final _remoteConfig = FirebaseRemoteConfig.instance;
+  static const _ignoredSoftVersionKey = 'ignored_soft_version';
 
   static Future<void> initialize() async {
     await _remoteConfig.setConfigSettings(RemoteConfigSettings(
@@ -56,6 +58,17 @@ class UpdateService {
         );
       } else if (compareLatest < 0) {
         // Soft update
+        final prefs = await SharedPreferences.getInstance();
+        final ignoredVersion = prefs.getString(_ignoredSoftVersionKey) ?? '';
+        if (ignoredVersion == latest) {
+          return UpdateInfo(
+            type: UpdateType.none,
+            currentVersion: currentVersion,
+            title: '',
+            message: '',
+          );
+        }
+
         return UpdateInfo(
           type: UpdateType.soft,
           currentVersion: currentVersion,
@@ -78,6 +91,11 @@ class UpdateService {
           title: '',
           message: '');
     }
+  }
+
+  static Future<void> ignoreSoftUpdate(String version) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_ignoredSoftVersionKey, version);
   }
 
   static int _compareVersions(String a, String b) {
