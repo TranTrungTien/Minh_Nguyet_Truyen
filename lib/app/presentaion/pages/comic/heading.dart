@@ -10,6 +10,10 @@ import 'package:minh_nguyet_truyen/core/constants/colors.dart';
 import 'package:minh_nguyet_truyen/core/utils/noti.dart';
 import 'package:minh_nguyet_truyen/setup.dart';
 
+// Imports for audio feature
+import 'package:audio_service/audio_service.dart';
+import 'package:minh_nguyet_truyen/app/presentaion/blocs/audio/audio_player_handler.dart';
+
 class HeadingComic extends StatefulWidget {
   const HeadingComic({super.key, required this.comic});
   final ComicEntity comic;
@@ -53,6 +57,41 @@ class _HeadingComicState extends State<HeadingComic> {
         "defaultChapters": []
       },
     );
+  }
+
+  void _handlePlayAudio() {
+    // 1. Lấy đúng kiểu đã đăng ký là AudioHandler
+    final audioHandler = getIt<AudioHandler>();
+    // 2. Kiểm tra và ép kiểu an toàn
+    if (audioHandler is AudioPlayerHandler) {
+      final initialChapters = widget.comic.chapters ?? [];
+      if (initialChapters.isEmpty) {
+        showFeatureComingSoon(context);
+        return;
+      }
+
+      int startIndex = 0;
+      if (_currentProgress?.chapter.id != null) {
+        final progressIndex = initialChapters
+            .indexWhere((c) => c.id == _currentProgress!.chapter.id);
+        if (progressIndex != -1) {
+          startIndex = progressIndex;
+        }
+      }
+
+      const initialPage = 1;
+
+      // 3. Gọi hàm `startPlayback` trên đối tượng đã được ép kiểu
+      audioHandler.startPlayback(
+        comic: widget.comic,
+        initialChapters: initialChapters,
+        startIndex: startIndex,
+        initialPage: initialPage,
+      );
+    } else {
+      // Xử lý trường hợp không tìm thấy handler (hiếm khi xảy ra)
+      showFeatureComingSoon(context);
+    }
   }
 
   @override
@@ -285,7 +324,7 @@ class _HeadingComicState extends State<HeadingComic> {
                 hoverColor: Colors.transparent,
                 highlightColor: Colors.transparent,
                 splashColor: Colors.transparent,
-                onTap: () => showFeatureComingSoon(context),
+                onTap: _handlePlayAudio,
                 child: Container(
                   margin: const EdgeInsets.symmetric(vertical: 5),
                   padding:
@@ -297,9 +336,9 @@ class _HeadingComicState extends State<HeadingComic> {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.fiber_new, color: AppColors.primary),
+                      Icon(Icons.music_note, color: AppColors.primary),
                       Text(
-                        " Đọc mới nhất",
+                        "Nghe Audio",
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
