@@ -51,140 +51,142 @@ class _BodyGenrePageState extends State<BodyGenrePage> {
         }
       },
       builder: (context, comicState) {
-        return Column(
-          children: [
-            ListTile(
-              title: const Text(
-                "Tình trạng:",
-                style: TextStyle(color: AppColors.textPrimary),
+        return SafeArea(
+          child: Column(
+            children: [
+              ListTile(
+                title: const Text(
+                  "Tình trạng:",
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+                trailing: DropdownButton(
+                  value: status,
+                  onChanged: (value) {
+                    showFeatureComingSoon(context);
+                    // if (value is StatusComic) {
+                    //   setState(() => status = value);
+                    //   context.read<ComicByGenreBloc>().add(
+                    //     GetComicByGenreEvent(
+                    //       status: value.name,
+                    //       genreId: genre.id,
+                    //     ),
+                    //   );
+                    // }
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: StatusComic.all,
+                      child: Text("Tất cả",
+                          style: TextStyle(color: AppColors.textSecondary)),
+                    ),
+                    DropdownMenuItem(
+                      value: StatusComic.ongoing,
+                      child: Text("Đang tiến hành",
+                          style: TextStyle(color: AppColors.textSecondary)),
+                    ),
+                    DropdownMenuItem(
+                      value: StatusComic.completed,
+                      child: Text("Đã hoàn thành",
+                          style: TextStyle(color: AppColors.textSecondary)),
+                    ),
+                  ],
+                ),
               ),
-              trailing: DropdownButton(
-                value: status,
-                onChanged: (value) {
-                  showFeatureComingSoon(context);
-                  // if (value is StatusComic) {
-                  //   setState(() => status = value);
-                  //   context.read<ComicByGenreBloc>().add(
-                  //     GetComicByGenreEvent(
-                  //       status: value.name,
-                  //       genreId: genre.id,
-                  //     ),
-                  //   );
-                  // }
-                },
-                items: const [
-                  DropdownMenuItem(
-                    value: StatusComic.all,
-                    child: Text("Tất cả",
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ),
-                  DropdownMenuItem(
-                    value: StatusComic.ongoing,
-                    child: Text("Đang tiến hành",
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ),
-                  DropdownMenuItem(
-                    value: StatusComic.completed,
-                    child: Text("Đã hoàn thành",
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              title: const Text(
-                "Thể loại:",
-                style: TextStyle(color: AppColors.textPrimary),
-              ),
-              trailing: BlocBuilder<GenreBloc, GenreState>(
-                builder: (context, state) {
-                  if (state is GenreSuccessfull) {
-                    final genres = state.listGenre!;
-                    return DropdownButton(
-                      value:
-                          genres.any((e) => e.id == genre.id) ? genre.id : null,
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            genre = genres.firstWhere(
-                              (e) => e.id == value,
-                              orElse: () => sl(),
-                            );
-                            currentPage = 1;
-                          });
-
-                          context.read<ComicByGenreBloc>().add(
-                                GetComicByGenreEvent(
-                                  genreId: genre.id,
-                                  status: status.name,
-                                ),
+              ListTile(
+                title: const Text(
+                  "Thể loại:",
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+                trailing: BlocBuilder<GenreBloc, GenreState>(
+                  builder: (context, state) {
+                    if (state is GenreSuccessfull) {
+                      final genres = state.listGenre!;
+                      return DropdownButton(
+                        value:
+                            genres.any((e) => e.id == genre.id) ? genre.id : null,
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              genre = genres.firstWhere(
+                                (e) => e.id == value,
+                                orElse: () => sl(),
                               );
-                        }
-                      },
-                      items: genres
-                          .map((e) => DropdownMenuItem(
-                                value: e.id,
-                                child: Text(
-                                  e.name ?? "",
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: AppColors.textSecondary),
-                                ),
-                              ))
-                          .toList(),
-                    );
+                              currentPage = 1;
+                            });
+          
+                            context.read<ComicByGenreBloc>().add(
+                                  GetComicByGenreEvent(
+                                    genreId: genre.id,
+                                    status: status.name,
+                                  ),
+                                );
+                          }
+                        },
+                        items: genres
+                            .map((e) => DropdownMenuItem(
+                                  value: e.id,
+                                  child: Text(
+                                    e.name ?? "",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary),
+                                  ),
+                                ))
+                            .toList(),
+                      );
+                    }
+          
+                    if (state is GenreLoading) {
+                      return const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: AppColors.primary,
+                        ),
+                      );
+                    }
+          
+                    if (state is GenreFailed) {
+                      return Tooltip(
+                        message: state.error!.message.toString(),
+                        child: const Icon(
+                          Icons.error,
+                          color: AppColors.danger,
+                          size: 24,
+                        ),
+                      );
+                    }
+          
+                    return const SizedBox();
+                  },
+                ),
+              ),
+              Expanded(
+                child: _buildComicList(comicState),
+              ),
+              IndexPage(
+                totalPages: totalPages,
+                currentPage: currentPage,
+                onValue: (index) {
+                  if (index <= totalPages && index >= 0) {
+                    setState(() {
+                      currentPage = index;
+                    });
                   }
-
-                  if (state is GenreLoading) {
-                    return const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppColors.primary,
-                      ),
-                    );
-                  }
-
-                  if (state is GenreFailed) {
-                    return Tooltip(
-                      message: state.error!.message.toString(),
-                      child: const Icon(
-                        Icons.error,
-                        color: AppColors.danger,
-                        size: 24,
-                      ),
-                    );
-                  }
-
-                  return const SizedBox();
+                  context.read<ComicByGenreBloc>().add(
+                        GetComicByGenreEvent(
+                          genreId: genre.id,
+                          status: status.name,
+                          page: index,
+                        ),
+                      );
                 },
               ),
-            ),
-            Expanded(
-              child: _buildComicList(comicState),
-            ),
-            IndexPage(
-              totalPages: totalPages,
-              currentPage: currentPage,
-              onValue: (index) {
-                if (index <= totalPages && index >= 0) {
-                  setState(() {
-                    currentPage = index;
-                  });
-                }
-                context.read<ComicByGenreBloc>().add(
-                      GetComicByGenreEvent(
-                        genreId: genre.id,
-                        status: status.name,
-                        page: index,
-                      ),
-                    );
-              },
-            ),
-            const SizedBox(height: 10),
-          ],
+              const SizedBox(height: 10),
+            ],
+          ),
         );
       },
     );

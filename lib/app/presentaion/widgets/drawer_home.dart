@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:minh_nguyet_truyen/core/constants/colors.dart';
 import 'package:minh_nguyet_truyen/core/constants/constants.dart';
 import 'package:minh_nguyet_truyen/core/utils/noti.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DrawerHome extends StatefulWidget {
   const DrawerHome(
@@ -77,15 +78,15 @@ class _DrawerHomeState extends State<DrawerHome> {
                     index: 4,
                     indexSelect: indexSelect),
                 ListTile(
-                  leading: const Icon(Icons.exit_to_app_outlined,
+                  leading: const Icon(Icons.email_outlined,
                       color: AppColors.textPrimary),
                   title: const Text(
-                    "Thoát",
+                    "Góp ý & Báo lỗi",
                     style:
                         TextStyle(fontSize: 18, color: AppColors.textPrimary),
                   ),
                   onTap: () {
-                    showFeatureComingSoon(context);
+                    _sendEmail();
                     Navigator.pop(context);
                   },
                 ),
@@ -95,6 +96,31 @@ class _DrawerHomeState extends State<DrawerHome> {
         ],
       ),
     );
+  }
+
+  void _sendEmail() async {
+    final String subject = Uri.encodeComponent("[Góp ý/Báo lỗi] - Ứng dụng Minh Nguyệt Truyện");
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: 'trantrungtien9x@gmail.com',
+      query: 'subject=$subject',
+    );
+
+    try {
+      if (await canLaunchUrl(emailLaunchUri)) {
+        await launchUrl(emailLaunchUri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $emailLaunchUri';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể mở ứng dụng email. Vui lòng gửi trực tiếp đến trantrungtien9x@gmail.com'),
+          ),
+        );
+      }
+    }
   }
 
   Widget _menuItem({
