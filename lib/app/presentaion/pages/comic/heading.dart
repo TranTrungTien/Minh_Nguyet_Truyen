@@ -10,6 +10,11 @@ import 'package:minh_nguyet_truyen/core/constants/colors.dart';
 import 'package:minh_nguyet_truyen/core/utils/noti.dart';
 import 'package:minh_nguyet_truyen/setup.dart';
 
+// Imports for audio feature
+import 'package:audio_service/audio_service.dart';
+import 'package:minh_nguyet_truyen/app/presentaion/blocs/audio/audio_player_handler.dart';
+import 'package:minh_nguyet_truyen/services/audio_daily_limit_service.dart';
+
 class HeadingComic extends StatefulWidget {
   const HeadingComic({super.key, required this.comic});
   final ComicEntity comic;
@@ -21,6 +26,7 @@ class HeadingComic extends StatefulWidget {
 class _HeadingComicState extends State<HeadingComic> {
   bool isShowMore = false;
   final _progressService = sl<ReadingProgressService>();
+  final _audioLimitService = sl<AudioDailyLimitService>();
   ReadingProgress? _currentProgress;
 
   @override
@@ -52,6 +58,141 @@ class _HeadingComicState extends State<HeadingComic> {
         "loadedFromLocal": true,
         "defaultChapters": []
       },
+    );
+  }
+
+  void _handlePlayAudio() async {
+    final audioHandler = getIt<AudioHandler>();
+    if (audioHandler is! AudioPlayerHandler) {
+      showFeatureComingSoon(context);
+      return;
+    }
+    final initialChapters = widget.comic.chapters ?? [];
+    if (initialChapters.isEmpty) {
+      showFeatureComingSoon(context);
+      return;
+    }
+
+    final remaining = await _audioLimitService.getRemainingCount();
+    final canListen = remaining > 0;
+    if (!mounted) return;
+
+    // Hiển thị dialog thông báo (beta + limit info)
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Row(
+          children: [
+            Icon(Icons.music_note, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('Nghe Audio'),
+          ],
+        ),
+        content: canListen
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.science_outlined,
+                            size: 16, color: AppColors.primary),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Tính năng thử nghiệm',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Mỗi ngày bạn được nghe tối đa ${AudioDailyLimitService.dailyLimit} chương audio. Nếu có bắt kì lỗi gì xảy ra vui lòng báo cho chúng tôi qua Góp ý & Báo lỗi',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Hãy kiểm tra xem thiết bị có support Tiếng Việt không? Vào Cài đặt → Trợ năng → TTS → thêm giọng Tiếng Việt.',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Hôm nay còn lại: $remaining chương',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              )
+            : const Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.lock_clock, size: 40, color: AppColors.primary),
+                  SizedBox(height: 12),
+                  Text(
+                    'Bạn đã hết lượt nghe hôm nay.',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Giới hạn ${AudioDailyLimitService.dailyLimit} chương/ngày sẽ được làm mới vào nửa đêm. Vui lòng quay lại vào ngày mai nhé!',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+        actions: canListen
+            ? [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Nghe ngay',
+                      style: TextStyle(color: AppColors.textOnPrimary)),
+                ),
+              ]
+            : [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Đã hiểu',
+                      style: TextStyle(color: AppColors.textOnPrimary)),
+                ),
+              ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    int startIndex = 0;
+    if (_currentProgress?.chapter.id != null) {
+      final progressIndex = initialChapters
+          .indexWhere((c) => c.id == _currentProgress!.chapter.id);
+      if (progressIndex != -1) startIndex = progressIndex;
+    }
+
+    audioHandler.startPlayback(
+      comic: widget.comic,
+      initialChapters: initialChapters,
+      startIndex: startIndex,
+      initialPage: 1,
     );
   }
 
@@ -285,7 +426,7 @@ class _HeadingComicState extends State<HeadingComic> {
                 hoverColor: Colors.transparent,
                 highlightColor: Colors.transparent,
                 splashColor: Colors.transparent,
-                onTap: () => showFeatureComingSoon(context),
+                onTap: _handlePlayAudio,
                 child: Container(
                   margin: const EdgeInsets.symmetric(vertical: 5),
                   padding:
@@ -297,9 +438,9 @@ class _HeadingComicState extends State<HeadingComic> {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.fiber_new, color: AppColors.primary),
+                      Icon(Icons.music_note, color: AppColors.primary),
                       Text(
-                        " Đọc mới nhất",
+                        "Nghe Audio",
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
