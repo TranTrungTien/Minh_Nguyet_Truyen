@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get_it/get_it.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:minh_nguyet_truyen/app/domain/models/chapter.dart';
 import 'package:minh_nguyet_truyen/app/domain/models/comic.dart';
+import 'package:minh_nguyet_truyen/core/resources/data_state.dart';
+import 'package:minh_nguyet_truyen/services/audio_daily_limit_service.dart';
+import 'package:minh_nguyet_truyen/app/data/services/reading_progress_service.dart';
 import 'package:minh_nguyet_truyen/app/domain/usecases/remote/get_chapter_per_page_usecase.dart';
 import 'package:minh_nguyet_truyen/app/domain/usecases/remote/get_content_one_chapter_usecase.dart';
-import 'package:minh_nguyet_truyen/core/resources/data_state.dart';
-import 'package:rxdart/rxdart.dart';
 
 final getIt = GetIt.instance;
 
@@ -17,6 +19,8 @@ Future<AudioHandler> initAudioService() async {
     builder: () => AudioPlayerHandler(
       getIt<GetContentOneChapterUsecase>(),
       getIt<GetChapterPerPageUsecase>(),
+      getIt<AudioDailyLimitService>(),
+      getIt<ReadingProgressService>(),
     ),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.minhnguyet.truyen.channel.audio',
@@ -32,6 +36,12 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   final GetChapterPerPageUsecase _getChaptersPerPage;
   final FlutterTts _tts = FlutterTts();
   final _playlist = BehaviorSubject<List<MediaItem>>.seeded([]);
+  final AudioDailyLimitService _dailyLimitService;
+  final _dailyLimitReachedController = StreamController<bool>.broadcast();
+  Stream<bool> get dailyLimitReached => _dailyLimitReachedController.stream;
+  StreamController<bool> get dailyLimitReachedController =>
+      _dailyLimitReachedController;
+  final ReadingProgressService _progressService;
 
   int _currentIndex = -1;
   ComicEntity? _currentComic;
@@ -45,7 +55,12 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   int _currentChunkOffset = 0;
   bool _isSkipping = false;
 
-  AudioPlayerHandler(this._getContentOneChapter, this._getChaptersPerPage) {
+  AudioPlayerHandler(
+    this._getContentOneChapter,
+    this._getChaptersPerPage,
+    this._dailyLimitService,
+    this._progressService,
+  ) {
     _initTts();
   }
 
@@ -71,6 +86,12 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     int startIndex = 0,
     int initialPage = 1,
   }) async {
+    final allowed = await _dailyLimitService.incrementCount();
+    if (!allowed) {
+      _dailyLimitReachedController.add(true);
+      return;
+    }
+
     await stop();
 
     _currentComic = comic;
@@ -222,6 +243,16 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
         await _tts.stop();
       } catch (_) {}
 
+      // Kiểm tra giới hạn nghe hàng ngày trước khi chuyển chương tiếp theo
+      final allowed = await _dailyLimitService.incrementCount();
+      if (!allowed) {
+        // Hết lượt nghe hôm nay — dừng phát và phát signal để UI có thể thông báo
+        await stop();
+        // Thông báo hết lượt qua stream (UI lắng nghe nếu cần)
+        _dailyLimitReachedController.add(true);
+        return;
+      }
+
       if (_currentIndex < _playlist.value.length - 1) {
         await skipToQueueItem(_currentIndex + 1);
         _isSkipping = false;
@@ -253,7 +284,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
             queue.add(List.from(currentList));
 
             await skipToQueueItem(_currentIndex + 1);
-            _isSkipping = false; // ✅ Reset trước khi play
+            _isSkipping = false;
             await play();
           } else {
             _isLastPage = true;
@@ -267,8 +298,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
         }
       }
     } finally {
-      _isSkipping =
-          false; // ✅ Vẫn giữ để catch các path còn lại (stop, error...)
+      _isSkipping = false;
     }
   }
 
@@ -319,6 +349,8 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     if (index < 0 || index >= _playlist.value.length) return;
     _currentIndex = index;
     mediaItem.add(_playlist.value[index]);
+
+    await _saveAudioProgress();
   }
 
   List<MediaItem> _chaptersToMediaItems(
@@ -339,5 +371,27 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     final newList = _playlist.value..addAll(mediaItems);
     _playlist.add(newList);
     queue.add(newList);
+  }
+
+  Future<void> _saveAudioProgress() async {
+    final item = mediaItem.value;
+    if (item == null || _currentComic == null) return;
+
+    final chapter = ChapterEntity(
+      id: item.id,
+      name: item.title,
+    );
+
+    await _progressService.saveProgress(
+      storyId: _currentComic!.id ?? '',
+      storyName: _currentComic!.title ?? '',
+      storyThumbnail:
+          _currentComic!.thumbnail, // optional, có sẵn trong ComicEntity
+      chapter: chapter,
+      currentChapterPage: _currentPage,
+      totalChapterPages: _currentComic!.totalChapterPages ?? 1,
+      isFirstChapter: _currentIndex == 0 && _currentPage == 1,
+      isLastChapter: _isLastPage && _currentIndex == _playlist.value.length - 1,
+    );
   }
 }

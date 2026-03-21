@@ -26,6 +26,7 @@ import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/comic/blocs/reco
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/comic/blocs/search_comic_bloc.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/comic/blocs/trending_comics_bloc.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/remote/genre/genre_bloc.dart';
+import 'package:minh_nguyet_truyen/services/audio_daily_limit_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:minh_nguyet_truyen/app/data/services/bookmark_service.dart';
 
@@ -107,4 +108,5 @@ Future<void> initlizeDependencies() async {
 
   // Reading Progress Service
   sl.registerLazySingleton(() => ReadingProgressService(sl()));
+  sl.registerLazySingleton(() => AudioDailyLimitService(sl()));
 }

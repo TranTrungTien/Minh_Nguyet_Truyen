@@ -2,10 +2,44 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:minh_nguyet_truyen/app/presentaion/blocs/audio/audio_player_handler.dart';
 import 'package:minh_nguyet_truyen/core/constants/colors.dart';
+import 'package:minh_nguyet_truyen/services/audio_daily_limit_service.dart';
 import 'package:miniplayer/miniplayer.dart';
 
-class GlobalMiniPlayer extends StatelessWidget {
+class GlobalMiniPlayer extends StatefulWidget {
   const GlobalMiniPlayer({super.key});
+
+  @override
+  State<GlobalMiniPlayer> createState() => _GlobalMiniPlayerState();
+}
+
+class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
+  @override
+  void initState() {
+    super.initState();
+    final handler = getIt<AudioHandler>();
+    if (handler is AudioPlayerHandler) {
+      handler.dailyLimitReached.listen((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Bạn đã hết ${AudioDailyLimitService.dailyLimit} lượt nghe hôm nay. Vui lòng quay lại ngày mai!'),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    final handler = getIt<AudioHandler>();
+    if (handler is AudioPlayerHandler) {
+      handler.dailyLimitReachedController.close();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
